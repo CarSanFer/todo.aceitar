@@ -305,6 +305,10 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
         </div>
         <div class="task-only" id="taskFields" style="display:none">
           <div class="dp-field">
+            <div class="dp-lbl">Atividades</div>
+            <textarea class="dp-ta" id="dpAtiv" rows="3" placeholder="Descreve as atividades..."></textarea>
+          </div>
+          <div class="dp-field">
             <div class="dp-lbl">Prioridade</div>
             <div class="prio-row">
               <button class="popt" id="popt-Alta" onclick="setPrio('Alta')">Alta</button>
@@ -322,7 +326,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
           </div>
         </div>
         <div class="dp-field" id="dpBodyField">
-          <div class="dp-lbl" id="dpBodyLbl">Conteúdo</div>
+          <div class="dp-lbl">Conteúdo</div>
           <textarea class="dp-ta" id="dpBody" rows="4" placeholder="Escreve aqui..."></textarea>
         </div>
         <div class="dp-sep"></div>
@@ -409,6 +413,7 @@ function _fromRow(r) {
     type:       r.type,
     titulo:     r.titulo,
     body:       r.body || '',
+    ativ:       r.ativ || '',
     grupo:      r.grupo || '',
     prioridade: r.prioridade || 'Media',
     prazo:      r.prazo || '',
@@ -425,6 +430,7 @@ function _toRow(it) {
     type:         it.type,
     titulo:       it.titulo,
     body:         it.body || '',
+    ativ:         it.type==='task' ? (it.ativ||'') : '',
     grupo:        it.type==='task' ? (it.grupo||'') : '',
     prioridade:   it.type==='task' ? (it.prioridade||'Media') : 'Media',
     prazo:        it.type==='task' ? (it.prazo||'') : '',
@@ -592,11 +598,10 @@ function tCard(t) {
     <div class="chk${t.done?' on':''}" onclick="event.stopPropagation();toggle('${t.id}')"></div>
     <div class="tc-body">
       <div class="tc-title${t.done?' x':''}">${esc(t.titulo||'(sem título)')}</div>
-      ${t.body ? `<div class="tc-prev">${esc(t.body)}</div>` : ''}
+      ${t.ativ ? `<div class="tc-prev">${esc(t.ativ)}</div>` : ''}
       <div class="tc-meta">
         <span class="pp pp-${pk}">${pl}</span>
         ${t.grupo ? `<span style="font-size:10px;padding:1px 6px;border-radius:3px;background:#e8e5de;color:var(--text2)">${esc(t.grupo)}</span>` : ''}
-        ${t.prazo ? `<span class="dc${ov?' ov':tod?' tod':''}">${fmtDate(t.prazo)}</span>` : ''}
       </div>
     </div>
   </div>`;
@@ -663,6 +668,7 @@ function openNew(forceType) {
   document.getElementById('dpTit').value = '';
   document.getElementById('dpPrazo').value = todayStr();
   document.getElementById('dpBody').value = '';
+  document.getElementById('dpAtiv') && (document.getElementById('dpAtiv').value = '');
   document.getElementById('dpGrupo').value = '';
   document.getElementById('dpDel').style.display = 'none';
   setType(t); setPrio('Media');
@@ -679,6 +685,7 @@ function selectItem(id) {
   document.getElementById('dpTit').value   = it.titulo||'';
   document.getElementById('dpPrazo').value = it.prazo||'';
   document.getElementById('dpBody').value  = it.body||'';
+  document.getElementById('dpAtiv') && (document.getElementById('dpAtiv').value = it.ativ||'');
   document.getElementById('dpGrupo').value = it.grupo||'';
   document.getElementById('dpDel').style.display = 'block';
   setType(it.type); setPrio(curPrio);
@@ -699,14 +706,16 @@ async function saveItem() {
   let it;
   if (isNew) {
     const grupo = document.getElementById('dpGrupo')?.value.trim()||'';
-    it = { id:uid(), type:curType, titulo, body, grupo:'', criadoEm:new Date().toISOString() };
-    if (curType==='task') { it.prioridade=curPrio; it.prazo=prazo; it.done=false; it.grupo=grupo; }
+    const ativ = document.getElementById('dpAtiv')?.value.trim()||'';
+    it = { id:uid(), type:curType, titulo, body, ativ:'', grupo:'', criadoEm:new Date().toISOString() };
+    if (curType==='task') { it.prioridade=curPrio; it.prazo=prazo; it.done=false; it.ativ=ativ; it.grupo=grupo; }
     items.unshift(it);
     toast(curType==='note' ? 'Nota criada' : 'Tarefa criada');
   } else {
     const i = items.findIndex(x=>x.id===selId);
     const grupo2 = document.getElementById('dpGrupo')?.value.trim()||'';
-    if (i>-1) { items[i]={...items[i], titulo, body}; if(curType==='task'){items[i].prioridade=curPrio; items[i].prazo=prazo; items[i].grupo=grupo2;} it=items[i]; }
+    const ativ2  = document.getElementById('dpAtiv')?.value.trim()||'';
+    if (i>-1) { items[i]={...items[i], titulo, body}; if(curType==='task'){items[i].prioridade=curPrio; items[i].prazo=prazo; items[i].grupo=grupo2; items[i].ativ=ativ2;} it=items[i]; }
     toast('Guardado');
   }
   closePane();
@@ -910,7 +919,7 @@ function _vDoSave() {
     items.unshift(it); closeMic(); toast('Nota criada por voz'); setView('notas'); _dbUpsert(it);
   } else {
     if (!dados.titulo) { _vSetStatus('Sem título. Cancela e tenta de novo.'); return; }
-    const it = { id:uid(), type:'task', titulo:dados.titulo, body:'', grupo:dados.grupo||'', prioridade:dados.prioridade||'Media', prazo:dados.prazo||'', done:false, criadoEm:new Date().toISOString() };
+    const it = { id:uid(), type:'task', titulo:dados.titulo, body:'', ativ:'', grupo:dados.grupo||'', prioridade:dados.prioridade||'Media', prazo:dados.prazo||'', done:false, criadoEm:new Date().toISOString() };
     items.unshift(it); closeMic(); toast('Tarefa criada por voz'); setView('tarefas'); _dbUpsert(it);
   }
 }
