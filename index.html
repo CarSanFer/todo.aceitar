@@ -845,13 +845,14 @@ function _vRecordFree() {
 /* Tarefa: perguntas sequenciais */
 const _TASK_STEPS = [
   { key:'titulo',     q:'Qual o titulo?' },
+  { key:'ativ',       q:'Quais as atividades? Se nao tiver, diz nao.' },
   { key:'prioridade', q:'Qual a prioridade?' },
   { key:'prazo',      q:'Qual a data?' },
   { key:'grupo',      q:'Qual o grupo? Se nao tiver, diz nao.' }
 ];
 
 function _vTaskSeq() {
-  _vData = { titulo:'', prioridade:'Media', prazo:'', grupo:'' };
+  _vData = { titulo:'', ativ:'', prioridade:'Media', prazo:'', grupo:'' };
   _vTaskStep(0);
 }
 
@@ -862,6 +863,8 @@ function _vTaskStep(i) {
     const s = seg.toLowerCase().trim();
     if (step.key === 'titulo') {
       _vData.titulo = seg.trim().slice(0, 80);
+    } else if (step.key === 'ativ') {
+      _vData.ativ = (s === 'nao' || s === 'não' || s === 'nada' || s === 'n') ? '' : seg.trim();
     } else if (step.key === 'prioridade') {
       _vData.prioridade = s.includes('alta') || s.includes('urgente') ? 'Alta'
                         : s.includes('baixa') ? 'Baixa' : 'Media';
@@ -920,18 +923,72 @@ function _vDoSave() {
     items.unshift(it); closeMic(); toast('Nota criada por voz'); setView('notas'); _dbUpsert(it);
   } else {
     if (!dados.titulo) { _vSetStatus('Sem título. Cancela e tenta de novo.'); return; }
-    const it = { id:uid(), type:'task', titulo:dados.titulo, body:'', ativ:'', grupo:dados.grupo||'', prioridade:dados.prioridade||'Media', prazo:dados.prazo||'', done:false, criadoEm:new Date().toISOString() };
+    const it = { id:uid(), type:'task', titulo:dados.titulo, body:'', ativ:dados.ativ||'', grupo:dados.grupo||'', prioridade:dados.prioridade||'Media', prazo:dados.prazo||'', done:false, criadoEm:new Date().toISOString() };
     items.unshift(it); closeMic(); toast('Tarefa criada por voz'); setView('tarefas'); _dbUpsert(it);
   }
 }
 
 function _vParseDate(s) {
-  const t = todayStr(), td = new Date(t+'T00:00:00'), sl = s.toLowerCase();
+  const t = todayStr(), td = new Date(t+'T00:00:00'), sl = s.toLowerCase().trim();
+  if (!sl || sl === 'nao' || sl === 'não' || sl === 'nada' || sl === 'sem prazo') return '';
   if (sl.includes('hoje')) return t;
-  if (sl.includes('amanhã') || sl.includes('amanha')) { const d=new Date(td); d.setDate(d.getDate()+1); return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate()); }
-  if (sl.includes('semana')) { const d=new Date(td); d.setDate(d.getDate()+7); return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate()); }
-  const meses = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
-  for (let i=0; i<meses.length; i++) { if(sl.includes(meses[i])){const m=sl.match(/[0-9]{1,2}/);return td.getFullYear()+'-'+p2(i+1)+'-'+p2(m?parseInt(m[0]):1);} }
+  if (sl.includes('amanhã') || sl.includes('amanha')) {
+    const d=new Date(td); d.setDate(d.getDate()+1);
+    return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate());
+  }
+  if (sl.includes('semana')) {
+    const d=new Date(td); d.setDate(d.getDate()+7);
+    return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate());
+  }
+  if (sl.includes('próxim') || sl.includes('proxim')) {
+    const d=new Date(td); d.setDate(d.getDate()+7);
+    return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate());
+  }
+  /* Números por extenso → algarismos */
+  const numWords = {'um':1,'uma':1,'dois':2,'duas':2,'três':3,'tres':3,'quatro':4,'cinco':5,'seis':6,'sete':7,'oito':8,'nove':9,'dez':10,'onze':11,'doze':12,'treze':13,'catorze':14,'quinze':15,'dezasseis':16,'dezassete':17,'dezoito':18,'dezanove':19,'vinte':20,'trinta':30,'trinta e um':31};
+  let sl2 = sl;
+  Object.entries(numWords).forEach(([w,n]) => { sl2 = sl2.replace(new RegExp('\\b'+w+'\\b','g'), String(n)); });
+  /* Meses com variações (sem acento, abreviados) */
+  const meses = [
+    ['janeiro','jan'],
+    ['fevereiro','fev'],
+    ['marco','março','mar'],
+    ['abril','abr'],
+    ['maio','mai'],
+    ['junho','jun'],
+    ['julho','jul'],
+    ['agosto','ago'],
+    ['setembro','set'],
+    ['outubro','out'],
+    ['novembro','nov'],
+    ['dezembro','dez']
+  ];
+  for (let i=0; i<meses.length; i++) {
+    if (meses[i].some(m => sl2.includes(m))) {
+      const nums = sl2.match(/\d{1,2}/g);
+      const day = nums ? parseInt(nums[0]) : 1;
+      let year = td.getFullYear();
+      /* Se o mês já passou este ano, assume próximo ano */
+      if (i < td.getMonth() || (i === td.getMonth() && day < td.getDate())) year++;
+      return year+'-'+p2(i+1)+'-'+p2(day);
+    }
+  }
+  /* Formato dd/mm ou dd-mm */
+  const m1 = sl2.match(/(\d{1,2})[\/-](\d{1,2})/);
+  if (m1) {
+    const day=parseInt(m1[1]), mon=parseInt(m1[2]);
+    let year=td.getFullYear();
+    if (mon-1 < td.getMonth() || (mon-1 === td.getMonth() && day < td.getDate())) year++;
+    return year+'-'+p2(mon)+'-'+p2(day);
+  }
+  /* Só número — assume dia do mês actual ou próximo */
+  const soNum = sl2.match(/^\s*(\d{1,2})\s*$/);
+  if (soNum) {
+    const day=parseInt(soNum[1]);
+    let d=new Date(td.getFullYear(), td.getMonth(), day);
+    if (d <= td) d=new Date(td.getFullYear(), td.getMonth()+1, day);
+    return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate());
+  }
   return '';
 }
 
