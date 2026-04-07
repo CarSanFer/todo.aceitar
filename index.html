@@ -836,11 +836,12 @@ function _vRecordFree() {
 const _TASK_STEPS = [
   { key:'titulo',     q:'Qual o titulo?' },
   { key:'prioridade', q:'Qual a prioridade?' },
-  { key:'prazo',      q:'Qual a data?' }
+  { key:'prazo',      q:'Qual a data?' },
+  { key:'grupo',      q:'Qual o grupo? Se nao tiver, diz nao.' }
 ];
 
 function _vTaskSeq() {
-  _vData = { titulo:'', prioridade:'Media', prazo:'', notas:'' };
+  _vData = { titulo:'', prioridade:'Media', prazo:'', grupo:'' };
   _vTaskStep(0);
 }
 
@@ -848,14 +849,16 @@ function _vTaskStep(i) {
   if (i >= _TASK_STEPS.length) { _vAskConfirm(); return; }
   const step = _TASK_STEPS[i];
   _vAsk(step.q, seg => {
+    const s = seg.toLowerCase().trim();
     if (step.key === 'titulo') {
       _vData.titulo = seg.trim().slice(0, 80);
     } else if (step.key === 'prioridade') {
-      const s = seg.toLowerCase();
       _vData.prioridade = s.includes('alta') || s.includes('urgente') ? 'Alta'
                         : s.includes('baixa') ? 'Baixa' : 'Media';
     } else if (step.key === 'prazo') {
       _vData.prazo = _vParseDate(seg);
+    } else if (step.key === 'grupo') {
+      _vData.grupo = (s === 'nao' || s === 'não' || s === 'nada' || s === 'n') ? '' : seg.trim();
     }
     _vTaskStep(i + 1);
   });
@@ -891,7 +894,7 @@ function _vShowPreview() {
     document.getElementById('pvTit').textContent   = _vData.titulo   || '-';
     document.getElementById('pvPrio').textContent  = pl[_vData.prioridade] || 'Média';
     document.getElementById('pvPrazo').textContent = _vData.prazo ? fmtDate(_vData.prazo) : 'Sem prazo';
-    document.getElementById('pvNotas').textContent = _vData.grupo   || '-';
+    document.getElementById('pvNotas').textContent = _vData.grupo || '-';
     fields.forEach((el,i) => { el.style.display = i===0 ? 'none' : 'flex'; });
   }
   pr.style.display = 'flex';
@@ -907,7 +910,7 @@ function _vDoSave() {
     items.unshift(it); closeMic(); toast('Nota criada por voz'); setView('notas'); _dbUpsert(it);
   } else {
     if (!dados.titulo) { _vSetStatus('Sem título. Cancela e tenta de novo.'); return; }
-    const it = { id:uid(), type:'task', titulo:dados.titulo, body:'', grupo:'', prioridade:dados.prioridade||'Media', prazo:dados.prazo||'', done:false, criadoEm:new Date().toISOString() };
+    const it = { id:uid(), type:'task', titulo:dados.titulo, body:'', grupo:dados.grupo||'', prioridade:dados.prioridade||'Media', prazo:dados.prazo||'', done:false, criadoEm:new Date().toISOString() };
     items.unshift(it); closeMic(); toast('Tarefa criada por voz'); setView('tarefas'); _dbUpsert(it);
   }
 }
