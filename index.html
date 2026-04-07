@@ -316,10 +316,14 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
             <div class="dp-lbl">Prazo</div>
             <input class="dp-inp" id="dpPrazo" type="date">
           </div>
+          <div class="dp-field">
+            <div class="dp-lbl">Grupo</div>
+            <input class="dp-inp" id="dpGrupo" placeholder="ex: SIGO, Obra A12, Pessoal...">
+          </div>
         </div>
-        <div class="dp-field">
+        <div class="dp-field" id="dpBodyField">
           <div class="dp-lbl" id="dpBodyLbl">Conteúdo</div>
-          <textarea class="dp-ta" id="dpBody" rows="5" placeholder="Escreve aqui..."></textarea>
+          <textarea class="dp-ta" id="dpBody" rows="4" placeholder="Escreve aqui..."></textarea>
         </div>
         <div class="dp-sep"></div>
         <div style="display:flex;flex-direction:column;gap:5px">
@@ -375,7 +379,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
       <div class="mic-field"><span class="mfl">Titulo</span><span id="pvTit">-</span></div>
       <div class="mic-field"><span class="mfl">Prioridade</span><span id="pvPrio">-</span></div>
       <div class="mic-field"><span class="mfl">Prazo</span><span id="pvPrazo">-</span></div>
-      <div class="mic-field" id="pvNotasRow"><span class="mfl">Notas</span><span id="pvNotas">-</span></div>
+      <div class="mic-field" id="pvNotasRow"><span class="mfl">Grupo</span><span id="pvNotas">-</span></div>
     </div>
     <div class="mic-no-support" id="micNoSupport" style="display:none">Browser sem suporte. Usa Chrome ou Edge.</div>
     <button class="mic-cancel-btn" onclick="closeMic()" style="width:100%;margin-top:4px">Cancelar</button>
@@ -405,6 +409,7 @@ function _fromRow(r) {
     type:       r.type,
     titulo:     r.titulo,
     body:       r.body || '',
+    grupo:      r.grupo || '',
     prioridade: r.prioridade || 'Media',
     prazo:      r.prazo || '',
     done:       r.done || false,
@@ -420,6 +425,7 @@ function _toRow(it) {
     type:         it.type,
     titulo:       it.titulo,
     body:         it.body || '',
+    grupo:        it.type==='task' ? (it.grupo||'') : '',
     prioridade:   it.type==='task' ? (it.prioridade||'Media') : 'Media',
     prazo:        it.type==='task' ? (it.prazo||'') : '',
     done:         it.type==='task' ? (it.done||false) : false,
@@ -506,7 +512,7 @@ function getFiltered() {
   const ts = todayStr();
   return items.filter(t => {
     if (t.type !== 'task') return false;
-    if (q && !t.titulo?.toLowerCase().includes(q) && !(t.body||'').toLowerCase().includes(q)) return false;
+    if (q && !t.titulo?.toLowerCase().includes(q) && !(t.body||'').toLowerCase().includes(q) && !(t.grupo||'').toLowerCase().includes(q)) return false;
     if (filter === 'hoje')      return !t.done && t.prazo === ts;
     if (filter === 'pendentes') return !t.done;
     if (filter === 'vencidas')  return isOv(t);
@@ -589,6 +595,7 @@ function tCard(t) {
       ${t.body ? `<div class="tc-prev">${esc(t.body)}</div>` : ''}
       <div class="tc-meta">
         <span class="pp pp-${pk}">${pl}</span>
+        ${t.grupo ? `<span style="font-size:10px;padding:1px 6px;border-radius:3px;background:#e8e5de;color:var(--text2)">${esc(t.grupo)}</span>` : ''}
         ${t.prazo ? `<span class="dc${ov?' ov':tod?' tod':''}">${fmtDate(t.prazo)}</span>` : ''}
       </div>
     </div>
@@ -639,7 +646,8 @@ function setType(t) {
   document.getElementById('tbtn-note').className = 'dp-type-btn' + (t==='note'?' s-note':'');
   document.getElementById('tbtn-task').className = 'dp-type-btn' + (t==='task'?' s-task':'');
   document.getElementById('taskFields').style.display = t==='task' ? 'flex' : 'none';
-  document.getElementById('dpBodyLbl').textContent = t==='note' ? 'Conteúdo' : 'Notas';
+  document.getElementById('dpBodyField').style.display = t==='note' ? 'flex' : 'none';
+  document.getElementById('dpBodyLbl').textContent = 'Conteúdo';
   document.getElementById('dpHdrTitle').textContent = isNew ? (t==='note'?'Nova Nota':'Nova Tarefa') : (t==='note'?'Editar Nota':'Editar Tarefa');
 }
 
@@ -655,6 +663,7 @@ function openNew(forceType) {
   document.getElementById('dpTit').value = '';
   document.getElementById('dpPrazo').value = todayStr();
   document.getElementById('dpBody').value = '';
+  document.getElementById('dpGrupo').value = '';
   document.getElementById('dpDel').style.display = 'none';
   setType(t); setPrio('Media');
   document.getElementById('detailPane').classList.remove('closed');
@@ -670,6 +679,7 @@ function selectItem(id) {
   document.getElementById('dpTit').value   = it.titulo||'';
   document.getElementById('dpPrazo').value = it.prazo||'';
   document.getElementById('dpBody').value  = it.body||'';
+  document.getElementById('dpGrupo').value = it.grupo||'';
   document.getElementById('dpDel').style.display = 'block';
   setType(it.type); setPrio(curPrio);
   document.getElementById('detailPane').classList.remove('closed');
@@ -688,13 +698,15 @@ async function saveItem() {
   const prazo = document.getElementById('dpPrazo').value;
   let it;
   if (isNew) {
-    it = { id:uid(), type:curType, titulo, body, criadoEm:new Date().toISOString() };
-    if (curType==='task') { it.prioridade=curPrio; it.prazo=prazo; it.done=false; }
+    const grupo = document.getElementById('dpGrupo')?.value.trim()||'';
+    it = { id:uid(), type:curType, titulo, body, grupo:'', criadoEm:new Date().toISOString() };
+    if (curType==='task') { it.prioridade=curPrio; it.prazo=prazo; it.done=false; it.grupo=grupo; }
     items.unshift(it);
     toast(curType==='note' ? 'Nota criada' : 'Tarefa criada');
   } else {
     const i = items.findIndex(x=>x.id===selId);
-    if (i>-1) { items[i]={...items[i], titulo, body}; if(curType==='task'){items[i].prioridade=curPrio; items[i].prazo=prazo;} it=items[i]; }
+    const grupo2 = document.getElementById('dpGrupo')?.value.trim()||'';
+    if (i>-1) { items[i]={...items[i], titulo, body}; if(curType==='task'){items[i].prioridade=curPrio; items[i].prazo=prazo; items[i].grupo=grupo2;} it=items[i]; }
     toast('Guardado');
   }
   closePane();
@@ -824,8 +836,7 @@ function _vRecordFree() {
 const _TASK_STEPS = [
   { key:'titulo',     q:'Qual o titulo?' },
   { key:'prioridade', q:'Qual a prioridade?' },
-  { key:'prazo',      q:'Qual a data?' },
-  { key:'notas',      q:'Tens alguma nota?' }
+  { key:'prazo',      q:'Qual a data?' }
 ];
 
 function _vTaskSeq() {
@@ -845,9 +856,6 @@ function _vTaskStep(i) {
                         : s.includes('baixa') ? 'Baixa' : 'Media';
     } else if (step.key === 'prazo') {
       _vData.prazo = _vParseDate(seg);
-    } else if (step.key === 'notas') {
-      const s = seg.toLowerCase().trim();
-      _vData.notas = (s === 'nada' || s === 'não' || s === 'nao' || s === 'nenhuma' || s === 'n') ? '' : seg.trim();
     }
     _vTaskStep(i + 1);
   });
@@ -883,7 +891,7 @@ function _vShowPreview() {
     document.getElementById('pvTit').textContent   = _vData.titulo   || '-';
     document.getElementById('pvPrio').textContent  = pl[_vData.prioridade] || 'Média';
     document.getElementById('pvPrazo').textContent = _vData.prazo ? fmtDate(_vData.prazo) : 'Sem prazo';
-    document.getElementById('pvNotas').textContent = _vData.notas   || '-';
+    document.getElementById('pvNotas').textContent = _vData.grupo   || '-';
     fields.forEach((el,i) => { el.style.display = i===0 ? 'none' : 'flex'; });
   }
   pr.style.display = 'flex';
@@ -895,11 +903,11 @@ function _vDoSave() {
   _vOpen = false; _vCB = null; _vMuted = false; _vSetCircle(false);
   if (tipo === 'note') {
     if (!dados.nota) { _vSetStatus('Sem texto. Cancela e tenta de novo.'); return; }
-    const it = { id:uid(), type:'note', titulo:dados.nota.slice(0,80), body:dados.nota.length>80?dados.nota.slice(80):'', criadoEm:new Date().toISOString() };
+    const it = { id:uid(), type:'note', titulo:dados.nota.slice(0,80), body:dados.nota.length>80?dados.nota.slice(80):'', grupo:'', criadoEm:new Date().toISOString() };
     items.unshift(it); closeMic(); toast('Nota criada por voz'); setView('notas'); _dbUpsert(it);
   } else {
     if (!dados.titulo) { _vSetStatus('Sem título. Cancela e tenta de novo.'); return; }
-    const it = { id:uid(), type:'task', titulo:dados.titulo, body:dados.notas||'', prioridade:dados.prioridade||'Media', prazo:dados.prazo||'', done:false, criadoEm:new Date().toISOString() };
+    const it = { id:uid(), type:'task', titulo:dados.titulo, body:'', grupo:'', prioridade:dados.prioridade||'Media', prazo:dados.prazo||'', done:false, criadoEm:new Date().toISOString() };
     items.unshift(it); closeMic(); toast('Tarefa criada por voz'); setView('tarefas'); _dbUpsert(it);
   }
 }
@@ -961,7 +969,7 @@ async function saveDroppedFile(type) {
   document.getElementById('fileModal').classList.remove('open');
   const titulo = _droppedName.replace(/\.[^.]+$/, '').slice(0, 80) || 'Ficheiro importado';
   const body   = _droppedContent.slice(0, 4000);
-  const it = { id:uid(), type, titulo, body, criadoEm:new Date().toISOString() };
+  const it = { id:uid(), type, titulo, body, grupo:'', criadoEm:new Date().toISOString() };
   if (type === 'task') { it.prioridade='Media'; it.prazo=''; it.done=false; }
   items.unshift(it);
   toast(type==='note' ? 'Nota importada' : 'Tarefa importada');
