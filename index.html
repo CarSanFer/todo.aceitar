@@ -326,7 +326,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
           </div>
         </div>
         <div class="dp-field" id="dpBodyField">
-          <div class="dp-lbl">Conteúdo</div>
+          <div class="dp-lbl" id="dpBodyLbl">Conteúdo</div>
           <textarea class="dp-ta" id="dpBody" rows="4" placeholder="Escreve aqui..."></textarea>
         </div>
         <div class="dp-sep"></div>
@@ -648,12 +648,13 @@ function calDayClick(ds) { openNew('task'); document.getElementById('dpPrazo').v
    ════════════════════════════════ */
 function setType(t) {
   curType = t;
-  document.getElementById('tbtn-note').className = 'dp-type-btn' + (t==='note'?' s-note':'');
-  document.getElementById('tbtn-task').className = 'dp-type-btn' + (t==='task'?' s-task':'');
-  document.getElementById('taskFields').style.display = t==='task' ? 'flex' : 'none';
-  document.getElementById('dpBodyField').style.display = t==='note' ? 'flex' : 'none';
-  document.getElementById('dpBodyLbl').textContent = 'Conteúdo';
-  document.getElementById('dpHdrTitle').textContent = isNew ? (t==='note'?'Nova Nota':'Nova Tarefa') : (t==='note'?'Editar Nota':'Editar Tarefa');
+  const get = id => document.getElementById(id);
+  get('tbtn-note').className = 'dp-type-btn' + (t==='note'?' s-note':'');
+  get('tbtn-task').className = 'dp-type-btn' + (t==='task'?' s-task':'');
+  get('taskFields').style.display = t==='task' ? 'flex' : 'none';
+  if (get('dpBodyField')) get('dpBodyField').style.display = t==='note' ? 'flex' : 'none';
+  if (get('dpBodyLbl')) get('dpBodyLbl').textContent = 'Conteúdo';
+  get('dpHdrTitle').textContent = isNew ? (t==='note'?'Nova Nota':'Nova Tarefa') : (t==='note'?'Editar Nota':'Editar Tarefa');
 }
 
 function setPrio(p) {
